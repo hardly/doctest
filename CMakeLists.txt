@@ -71,6 +71,7 @@ endif()
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND DOCTEST_WITH_TESTS)
     include(scripts/cmake/common.cmake)
+    include(scripts/cmake/clang-tidy.cmake)
 
     add_subdirectory(examples/all_features)
 
