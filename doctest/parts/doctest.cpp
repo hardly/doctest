@@ -261,10 +261,13 @@ namespace detail {
 
     DOCTEST_THREAD_LOCAL std::ostringstream g_oss; // NOLINT(cert-err58-cpp)
 
-    std::ostream* getTlsOss() {
-        g_oss.clear(); // there shouldn't be anything worth clearing in the flags
-        g_oss.str(""); // the slow way of resetting a string stream
-        //g_oss.seekp(0); // optimal reset - as seen here: https://stackoverflow.com/a/624291/3162383
+    //reset default value is true. getTlsOss(bool reset=true);
+    std::ostream* getTlsOss(bool reset) {
+        if(reset) {
+          g_oss.clear(); // there shouldn't be anything worth clearing in the flags
+          g_oss.str(""); // the slow way of resetting a string stream
+          //g_oss.seekp(0); // optimal reset - as seen here: https://stackoverflow.com/a/624291/3162383
+	}
         return &g_oss;
     }
 
@@ -3333,18 +3336,42 @@ namespace {
                            std::vector<String>& res) {
         String filtersString;
         if(parseOption(argc, argv, pattern, &filtersString)) {
-            // tokenize with "," as a separator
-            // cppcheck-suppress strtokCalled
-            DOCTEST_CLANG_SUPPRESS_WARNING_WITH_PUSH("-Wdeprecated-declarations")
-            auto pch = std::strtok(filtersString.c_str(), ","); // modifies the string
-            while(pch != nullptr) {
-                if(strlen(pch))
-                    res.push_back(pch);
-                // uses the strtok() internal state to go to the next token
-                // cppcheck-suppress strtokCalled
-                pch = std::strtok(nullptr, ",");
+            // tokenize with "," as a separator, unless escaped with backslash
+            std::ostringstream s;
+            auto flush = [&s, &res]() {
+                auto string = s.str();
+                if(string.size() > 0) {
+                    res.push_back(string.c_str());
+                }
+                s.str("");
+            };
+
+            bool seenBackslash = false;
+            const char* current = filtersString.c_str();
+            const char* end = current + strlen(current);
+            while(current != end) {
+                char character = *current++;
+                if(seenBackslash) {
+                    seenBackslash = false;
+                    if(character == ',') {
+                        s.put(',');
+                        continue;
+                    }
+                    s.put('\\');
+                }
+                if(character == '\\') {
+                    seenBackslash = true;
+                } else if(character == ',') {
+                    flush();
+                } else {
+                    s.put(character);
+                }
             }
-            DOCTEST_CLANG_SUPPRESS_WARNING_POP
+
+            if(seenBackslash) {
+                s.put('\\');
+            }
+            flush();
             return true;
         }
         return false;
